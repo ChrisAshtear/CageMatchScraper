@@ -19,7 +19,7 @@ namespace CageMatchScraper
         TAGTEAM = 28
     }
     
-    public enum PageType
+    public enum PageType//These are pages specific to promotion. Wrestler pages are different. 4 is Matches, Tournaments is 16.
     {
         OVERVIEW=-1,
         NEWS=2,
@@ -46,6 +46,7 @@ namespace CageMatchScraper
     public class TagTeam
     {
         public string name;
+        public int teamID;
         public List<Wrestler> wrestlers = new List<Wrestler>();
     }
 
@@ -57,7 +58,9 @@ namespace CageMatchScraper
 
     public class WrestlingMatch
     {
-        public List<List<Wrestler>> sides = new List<List<Wrestler>>();
+        public List<List<Wrestler>> sidesWrestlers = new List<List<Wrestler>>();
+        public List<List<Wrestler>> sidesManagers = new List<List<Wrestler>>();
+        public List<List<TagTeam>> sidesTeams = new List<List<TagTeam>>();
         public string length;
         public int victor = 0;
         public string data;
@@ -128,6 +131,7 @@ namespace CageMatchScraper
                 int Pos1 = STR.IndexOf(FirstString) + FirstString.Length;
                 int Pos2 = STR.IndexOf(LastString, Pos1);
                 if (LastString == "NONE") { Pos2 = STR.Length; }
+                if (Pos1 - FirstString.Length == -1 || Pos2 == -1) { return ""; }
                 if (Pos2 - Pos1 < 0) { return ""; }
                 FinalString = STR.Substring(Pos1, Pos2 - Pos1);
             }
@@ -139,7 +143,7 @@ namespace CageMatchScraper
             
             return FinalString;
         }
-
+        //do unit test for parse list.
         public Dictionary<string, string> ParseList(string html, TagInfo eventTag, TagInfo listHeader, TagInfo listEntry)
         {
             HtmlDocument htmlDoc = new HtmlDocument();
@@ -173,31 +177,55 @@ namespace CageMatchScraper
                     foreach(string side in sides)
                     {
                         List<Wrestler> participants = new List<Wrestler>();
+                        List<Wrestler> nonparticipants = new List<Wrestler>();
+                        List<TagTeam> teams = new List<TagTeam>();
 
                         string teamEntry = Between(side, "(", ")");
                         string otherMembers = side;
-                        if (side.Contains("(") && teamEntry.Length > 5)// tag team, or match length.
+                        if (side.Contains("(") && teamEntry.Length > 5 && !teamEntry.Contains("w/"))// tag team, or match length if the entry is short(<5characters).
                         {
+                            //add TagTeam name to a match description?
                             //string teamEntry = Between(side, "(", ")");
                             TagTeam team = new TagTeam();
                             team.name = Between(side, ">", "<");
                             List<Wrestler> teamMembers = ParseParticipants(teamEntry);
                             participants.AddRange(teamMembers);
-                            otherMembers = Between(side, ")");
+                            team.wrestlers.AddRange(teamMembers);
+                            otherMembers = Between(side, ") &");
+                            int.TryParse(Between(side, "nr=", "&"), out team.teamID);
+                            teams.Add(team);
+                            match.sidesTeams.Add(teams);
                         }
-                        if(otherMembers.Length >3)
+                        string managers = Between(side, "(w/", ")");
+                        if(managers.Length > 0) { nonparticipants = ParseParticipants(managers); }
+                        if (otherMembers.Length >3)
                         {
                             List<Wrestler> singleMembers = ParseParticipants(otherMembers);
                             participants.AddRange(singleMembers);
                         }
-                        match.sides.Add(participants);
+                        
+                        match.sidesManagers.Add(nonparticipants);
+                        foreach(Wrestler w in nonparticipants)
+                        {
+                            Wrestler? f = participants.Find(x => x.wrestlerID == w.wrestlerID);
+                            if (f != null)
+                            {
+                                participants.Remove(f);
+                            }
+                        }
+                        match.sidesWrestlers.Add(participants);
                     }
-                    //w/ Manager - managers still counted as participants.
+                    // 'and' for 3 ways / tag team 3 ways.
+                    // 'Three Way:' title of match at beginning - watch out for the : in time
+                    //DQ- "ROH World Tag Team Title: FTR (Cash Wheeler & Dax Harwood) (c) vs. Roppongi Vice (Rocky Romero & Trent Beretta) - Double DQ (10:25)"
+                    //Robyn Renegade defeats Vicky Dreamboat (3:31)  - no links for wrestlers 
+                    //Steel Cage Match (Special Referee: MJF): Wardlow defeats Shawn Spears (6:53)
+                    //Three Way: Swerve Strickland defeats Jungle Boy and Ricky Starks (9:36)
                     evt.matches.Add(match);
                 }
                 events.Add(evt.name,evt);
             }
-
+            //managers sides not matching
             Dictionary<string, string> data = new Dictionary<string, string>();
             /*
             for (int i = 0; i < names.Count; i++)
