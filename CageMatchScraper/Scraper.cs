@@ -10,13 +10,42 @@ using System.IO;
 
 namespace CageMatchScraper
 {
+    public class EventResults
+    {
+        public List<Wrestler> wrestlers = new List<Wrestler>();
+        public List<TagTeam> tags = new List<TagTeam>();
+        public Dictionary<string,WrestlingEvent> events = new Dictionary<string,WrestlingEvent>();
+        public void AddWrestlers(IEnumerable<Wrestler> wrestlers)
+        {
+            foreach(Wrestler w in wrestlers)
+            {
+                if (!this.wrestlers.Contains(w))
+                {
+                    this.wrestlers.Add(w);
+                }
+            }
+            
+        }
+        public void AddTags(IEnumerable<TagTeam> tagteams)//support teams with diff members.
+        {
+            foreach(TagTeam t in tagteams)
+            {
+                if (!tags.Contains(t))
+                {
+                    tags.Add(t);
+                }
+            }
+        }
+    }
+
     public enum RequestType
     {
         EVENT = 1,
         WRESTLER = 2,
         PROMOTION = 8,
         TITLE = 5,
-        TAGTEAM = 28
+        TAGTEAM = 28,
+        STABLE = 29
     }
     
     public enum PageType//These are pages specific to promotion. Wrestler pages are different. 4 is Matches, Tournaments is 16.
@@ -54,6 +83,7 @@ namespace CageMatchScraper
     {
         public string name;
         public int wrestlerID;
+        //support nonparticipant.
     }
 
     public class WrestlingMatch
@@ -64,6 +94,8 @@ namespace CageMatchScraper
         public string length;
         public int victor = 0;
         public string data;
+        public string title;
+        public string result = "Normal";
     }
 
     public class WrestlingEvent
@@ -123,13 +155,23 @@ namespace CageMatchScraper
 
         }
 
-        public string Between(string STR, string FirstString, string LastString="NONE")
+        public string Between(string STR, string FirstString, string LastString="NONE",bool lastIndex = false)
         {
             string FinalString = "";
             try
             {
-                int Pos1 = STR.IndexOf(FirstString) + FirstString.Length;
-                int Pos2 = STR.IndexOf(LastString, Pos1);
+                int Pos1,Pos2; 
+                if(lastIndex)
+                {
+                    
+                    Pos2 = STR.LastIndexOf(LastString);
+                    Pos1 = STR.Substring(0, Pos2).LastIndexOf(FirstString) + FirstString.Length;
+                }
+                else
+                {
+                    Pos1 = STR.IndexOf(FirstString) + FirstString.Length;
+                    Pos2 = STR.IndexOf(LastString, Pos1);
+                }
                 if (LastString == "NONE") { Pos2 = STR.Length; }
                 if (Pos1 - FirstString.Length == -1 || Pos2 == -1) { return ""; }
                 if (Pos2 - Pos1 < 0) { return ""; }
@@ -144,7 +186,7 @@ namespace CageMatchScraper
             return FinalString;
         }
         //do unit test for parse list.
-        public Dictionary<string, string> ParseList(string html, TagInfo eventTag, TagInfo listHeader, TagInfo listEntry)
+        public EventResults ParseList(string html, TagInfo eventTag, TagInfo listHeader, TagInfo listEntry)
         {
             HtmlDocument htmlDoc = new HtmlDocument();
             htmlDoc.LoadHtml(html);
@@ -152,7 +194,7 @@ namespace CageMatchScraper
             var eventEntry = htmlDoc.DocumentNode.Descendants(eventTag.htmlElement)
                     .Where(node => node.GetAttributeValue("class", "").Equals(eventTag.className)).ToList();
 
-            Dictionary<string,WrestlingEvent> events = new Dictionary<string,WrestlingEvent>();
+            EventResults events = new EventResults();
 
             foreach(var item in eventEntry)
             {
@@ -172,8 +214,35 @@ namespace CageMatchScraper
                 {
                     WrestlingMatch match = new WrestlingMatch();
                     match.data = value.InnerHtml;
-                    String[] sides = value.InnerHtml.Split("defeat");
-                    
+                    string[] nameandtime = value.InnerHtml.Split(':');
+                    for(int i=0;i<nameandtime.Length;i++)
+                    {
+                        string str = nameandtime[i];
+                        if(nameandtime.Length>1)
+                        {
+                            if(i<1 && nameandtime.Length>2){ match.title = str; }
+                            else { match.length = Between(value.InnerHtml,"(",")",true); }
+                        }
+                    }
+                    List<string> sides = value.InnerHtml.Split("defeat").ToList();
+                    if (sides.Count < 2)
+                    {
+                        sides = value.InnerHtml.Split("vs.").ToList(); match.victor = -1;//no winner }//draw/dq
+                        match.result = Between(value.InnerHtml, "- ", " (");//match result//no return if no time.
+                    }
+
+                    List<string> multiSideCheck = value.InnerHtml.Split(" and ").ToList();
+                    if (multiSideCheck.Count > 1) 
+                    {
+                        multiSideCheck.RemoveAt(0);//remove duplicate sides already counted.
+                        for (int i = 0; i < sides.Count;i++)// this extra side will be in the previous sides, remove.
+                        {
+                            int cutoff = sides[i].IndexOf(" and ");
+                            if (cutoff != -1) { sides[i] = sides[i].Substring(0, cutoff); }
+                        }
+                        sides.AddRange(multiSideCheck.ToList()); 
+                    }
+
                     foreach(string side in sides)
                     {
                         List<Wrestler> participants = new List<Wrestler>();
@@ -187,11 +256,16 @@ namespace CageMatchScraper
                             //add TagTeam name to a match description?
                             //string teamEntry = Between(side, "(", ")");
                             TagTeam team = new TagTeam();
-                            team.name = Between(side, ">", "<");
+                            team.name = Between(side, ">", "</a> (",true);
                             List<Wrestler> teamMembers = ParseParticipants(teamEntry);
                             participants.AddRange(teamMembers);
                             team.wrestlers.AddRange(teamMembers);
                             otherMembers = Between(side, ") &");
+                            if(otherMembers == "") { otherMembers = Between(side, "), "); }
+                            if(otherMembers == "") 
+                            {
+                                otherMembers = Between(side, "", "("); 
+                            }
                             int.TryParse(Between(side, "nr=", "&"), out team.teamID);
                             teams.Add(team);
                             match.sidesTeams.Add(teams);
@@ -215,27 +289,30 @@ namespace CageMatchScraper
                         }
                         match.sidesWrestlers.Add(participants);
                     }
-                    // 'and' for 3 ways / tag team 3 ways.
+                    //match title: <span class= "MatchType"> - doesnt exist for every match.
                     // 'Three Way:' title of match at beginning - watch out for the : in time
                     //DQ- "ROH World Tag Team Title: FTR (Cash Wheeler & Dax Harwood) (c) vs. Roppongi Vice (Rocky Romero & Trent Beretta) - Double DQ (10:25)"
-                    //Robyn Renegade defeats Vicky Dreamboat (3:31)  - no links for wrestlers 
+                    //Robyn Renegade defeats Vicky Dreamboat (3:31)  - no links for wrestlers **** if a wrestler has no link they dont show up.
                     //Steel Cage Match (Special Referee: MJF): Wardlow defeats Shawn Spears (6:53)
                     //Three Way: Swerve Strickland defeats Jungle Boy and Ricky Starks (9:36)
                     evt.matches.Add(match);
+                    foreach(List<Wrestler> w in match.sidesWrestlers)
+                    {
+                        events.AddWrestlers(w);
+                    }
+                    foreach (List<Wrestler> w in match.sidesManagers)
+                    {
+                        events.AddWrestlers(w);
+                    }
+                    foreach( List<TagTeam> teams in match.sidesTeams)
+                    {
+                        events.AddTags(teams);
+                    }
                 }
-                events.Add(evt.name,evt);
+                events.events.Add(evt.name,evt);//hikuleo showing as a team???
             }
-            //managers sides not matching
-            Dictionary<string, string> data = new Dictionary<string, string>();
-            /*
-            for (int i = 0; i < names.Count; i++)
-            {
-                var name = names[i];
-                var value = values[i];
-                data.Add(name.InnerHtml.Trim(':'), value.InnerHtml);
-            }*/
-
-            return data;
+            
+            return events;
 
         }
         List<Wrestler> ParseParticipants(string html)
@@ -248,6 +325,8 @@ namespace CageMatchScraper
                 Wrestler w = new Wrestler();
                 w.name = Between(wrestler, ">", "<");
                 int.TryParse(Between(wrestler, "nr=", "&"),out w.wrestlerID);
+                int.TryParse(Between(wrestler, "id=", "&"), out int typeID);
+                if(typeID == (int)RequestType.TAGTEAM || typeID == (int)RequestType.STABLE) { continue; }//this is a team/stable not a wrestler.
                 participants.Add(w);
             }
             return participants;
