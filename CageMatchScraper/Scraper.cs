@@ -10,6 +10,12 @@ using System.IO;
 
 namespace CageMatchScraper
 {
+    public interface IWebDataOut
+    {
+        public string POSTdata();
+
+        public bool sendData(SendData ins);
+    }
     public class EventResults
     {
         public List<Wrestler> wrestlers = new List<Wrestler>();
@@ -19,7 +25,7 @@ namespace CageMatchScraper
         {
             foreach(Wrestler w in wrestlers)
             {
-                if (!this.wrestlers.Contains(w))
+                if (this.wrestlers.FindIndex(o=> o.wrestlerID == w.wrestlerID) == -1)
                 {
                     this.wrestlers.Add(w);
                 }
@@ -30,7 +36,7 @@ namespace CageMatchScraper
         {
             foreach(TagTeam t in tagteams)
             {
-                if (!tags.Contains(t))
+                if (tags.FindIndex(o => o.teamID == t.teamID) == -1)
                 {
                     tags.Add(t);
                 }
@@ -66,27 +72,104 @@ namespace CageMatchScraper
         RATINGS=98
     }
 
+    
+
+    public static class API
+    {
+        public enum apiCall
+        {
+            ADDEVENT = 0,
+            ADDFED = 1,
+            ADDMATCH = 2,
+            ADDPARTICIPANT = 3,
+            ADDWORKER = 4,
+            ADDTEAM = 5,
+            ADDTEAM_MEMBER = 6
+        }
+
+        private static string[] apicalls = { 
+            "addevent",
+            "addfed",
+            "addmatch",
+            "addmatchparticipant",
+            "addworker",
+            "addteam",
+            "addteammember"
+        };
+
+        public static string Call(apiCall calltype)
+        {
+            return apicalls[(int)calltype];
+        }
+    }
+
+
     public struct TagInfo
     {
         public string htmlElement;
         public string className;
     }
 
-    public class TagTeam
+    public class TagTeam : Object , IWebDataOut
     {
         public string name;
         public int teamID;
         public List<Wrestler> wrestlers = new List<Wrestler>();
+        public bool isStable = false;
+
+        public string POSTdata()
+        {
+            return $"name={name}&team_id={teamID}&stable={Convert.ToInt16(isStable)}";
+        }
+
+        public bool sendData(SendData ins)
+        {
+            string matchID = ins.sendData(API.apiCall.ADDTEAM, this).ToString();//return m_id
+            foreach (Wrestler wrestler in wrestlers)
+            {
+                string postDat = wrestler.POSTdata();
+                postDat += $"&team_id={teamID}&current_member=1";
+                ins.sendData(API.apiCall.ADDTEAM_MEMBER, this, postDat);
+            }
+            return true;
+        }
+
+        public override String ToString()
+        {
+            string members="";
+            foreach (Wrestler w in wrestlers)
+            {
+                members += w.name + ",";
+            }
+            members.TrimEnd(',');
+            return $"{name} : {members})";
+        }
     }
 
-    public class Wrestler
+    public class Wrestler : Object,IWebDataOut
     {
         public string name;
         public int wrestlerID;
+
+        public string POSTdata()
+        {
+            return $"name={name}&worker_id={wrestlerID}";
+        }
+
+        public bool sendData(SendData ins)
+        {
+            ins.sendData(API.apiCall.ADDWORKER, this);
+            return true;
+        }
+
         //support nonparticipant.
+        public override String ToString()
+        {
+            return $"{name}";
+        }
     }
 
-    public class WrestlingMatch
+    public class WrestlingMatch : Object,IWebDataOut
     {
         public List<List<Wrestler>> sidesWrestlers = new List<List<Wrestler>>();
         public List<List<Wrestler>> sidesManagers = new List<List<Wrestler>>();
@@ -96,16 +179,112 @@ namespace CageMatchScraper
         public string data;
         public string title;
         public string result = "Normal";
+        public int fed_id;
+        public int event_id;
+
+        public string POSTdata()
+        {
+            return $"title={title}&fed_id={fed_id}&result={result}&length={length}&victor={victor}&event_id={event_id}";
+        }
+
+        public bool sendData(SendData ins)
+        {
+            string matchID = ins.sendData(API.apiCall.ADDMATCH, this).ToString();//return m_id
+            for(int i=0;i<sidesWrestlers.Count;i++)
+            {
+                foreach (Wrestler wrestler in sidesWrestlers[i])
+                {
+                    string postDat = wrestler.POSTdata();
+                    postDat += $"&side={i}&is_participant=1";
+                    ins.sendData(API.apiCall.ADDPARTICIPANT, this, postDat);
+                }
+                foreach (Wrestler wrestler in sidesManagers[i])
+                {
+                    string postDat = wrestler.POSTdata();
+                    postDat += $"&side={i}&is_participant=0";
+                    ins.sendData(API.apiCall.ADDPARTICIPANT, this, postDat);
+                }
+            }
+            return true;
+        }
+
+        public override String ToString()
+        {
+            string sides = "";
+            foreach (List<Wrestler> ws in sidesWrestlers)
+            {
+                foreach(Wrestler w in ws)
+                {
+                    sides = w.name + ",";
+                }
+                sides.TrimEnd(',');
+                sides += " vs. ";
+            }
+            return $"{title} : {sides})";
+        }
     }
 
-    public class WrestlingEvent
+    public class WrestlingEvent : Object, IWebDataOut
     {
         public string name;
         public string location;
         public string date;
+        public string arena;
         public int eventID;
+        public int fed_id;
 
         public List<WrestlingMatch> matches = new List<WrestlingMatch>();
+
+        public string POSTdata()
+        {
+            return $"e_id={eventID}&name={name}&fed_id={fed_id}&date={date}&arena={arena}&location={location}";
+        }
+
+        public bool sendData(SendData ins)
+        {
+            ins.sendData(API.apiCall.ADDEVENT, this);
+            foreach(WrestlingMatch match in matches)
+            {
+                match.fed_id = fed_id;
+                match.event_id = eventID; 
+                match.sendData(ins);
+            }
+            return true;
+        }
+
+        public override String ToString()
+        {
+            return $"{name} : {date} @ {location}";
+        }
+    }
+
+    public class WrestlingPromotion : Object, IWebDataOut
+    {
+        public string name;
+        public string initials;
+        public int fed_id;
+        public int formed;
+        public string website;
+        
+
+        public string POSTdata()
+        {
+            return $"fed_id={fed_id}&name={name}&initials={initials}&site={website}";
+        }
+
+        public bool sendData(SendData ins)
+        {
+            ins.sendData(API.apiCall.ADDFED, this);
+            return true;
+        }
+
+        public WrestlingPromotion(Dictionary<string,string> values, int id)
+        {
+            name = values["Current name"];
+            initials = values["Current abbreviation"];
+            fed_id = id;
+            formed = int.Parse(values["Active Time"].Split('-')[0]);
+        }
     }
 
     public class Scraper
@@ -186,7 +365,7 @@ namespace CageMatchScraper
             return FinalString;
         }
         //do unit test for parse list.
-        public EventResults ParseList(string html, TagInfo eventTag, TagInfo listHeader, TagInfo listEntry)
+        public EventResults ParseList(string html, int fedID, TagInfo eventTag, TagInfo listHeader, TagInfo listEntry)
         {
             HtmlDocument htmlDoc = new HtmlDocument();
             htmlDoc.LoadHtml(html);
@@ -206,7 +385,7 @@ namespace CageMatchScraper
                 evt.date = Between(name[0].InnerHtml, "(", ")");
                 evt.location = Between(name[0].InnerHtml, "@");
                 evt.eventID = int.Parse(Between(name[0].InnerHtml, "nr=", "\""));
-
+                evt.fed_id = fedID;
                 var values = item.Descendants(listEntry.htmlElement)
                         .Where(node => node.GetAttributeValue("class", "").Contains(listEntry.className)).ToList();
 
@@ -257,6 +436,7 @@ namespace CageMatchScraper
                             //string teamEntry = Between(side, "(", ")");
                             TagTeam team = new TagTeam();
                             team.name = Between(side, ">", "</a> (",true);
+
                             List<Wrestler> teamMembers = ParseParticipants(teamEntry);
                             participants.AddRange(teamMembers);
                             team.wrestlers.AddRange(teamMembers);
@@ -290,6 +470,9 @@ namespace CageMatchScraper
                         match.sidesWrestlers.Add(participants);
                     }
                     //match title: <span class= "MatchType"> - doesnt exist for every match.
+                    //only shows ENTERTAINMENT - maybe its not escaping the string for post.
+                    //pro wrestling wiki for pictures.
+                    //(19.01.2022) AEW Dark: Elevation #47 - TV-Show @ Entertainment & Sports Arena in Washington, District Of Columbia, USA
                     // 'Three Way:' title of match at beginning - watch out for the : in time
                     //DQ- "ROH World Tag Team Title: FTR (Cash Wheeler & Dax Harwood) (c) vs. Roppongi Vice (Rocky Romero & Trent Beretta) - Double DQ (10:25)"
                     //Robyn Renegade defeats Vicky Dreamboat (3:31)  - no links for wrestlers **** if a wrestler has no link they dont show up.
@@ -309,7 +492,8 @@ namespace CageMatchScraper
                         events.AddTags(teams);
                     }
                 }
-                events.events.Add(evt.name,evt);//hikuleo showing as a team???
+                Console.WriteLine(evt);
+                events.events.Add(evt.name,evt);
             }
             
             return events;
