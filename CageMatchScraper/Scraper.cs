@@ -144,6 +144,15 @@ namespace CageMatchScraper
             members.TrimEnd(',');
             return $"{name} : {members})";
         }
+
+        public bool IsMember(Wrestler w)
+        {
+            if(wrestlers.FindIndex(o => o.wrestlerID == w.wrestlerID)!= -1)
+            {
+                return true;
+            }
+            return false;
+        }
     }
 
     public class Wrestler : Object,IWebDataOut
@@ -177,10 +186,88 @@ namespace CageMatchScraper
         public string length;
         public int victor = 0;
         public string data;
+        public string textdesc;
+        public string parseddesc;
         public string title;
         public string result = "Normal";
         public int fed_id;
         public int event_id;
+
+        public bool VerifyScrape()
+        {
+            string test = "";
+            for (int i = 0; i < sidesWrestlers.Count; i++)
+            {
+                int participantCtr = 0;
+                bool singlesMemberBeforeTag = false;
+                foreach (Wrestler wrestler in sidesWrestlers[i])
+                {
+                    bool tagMember = false;
+                    foreach(TagTeam t in sidesTeams[i])
+                    {
+                        tagMember = t.IsMember(wrestler);
+                    }
+                    if (tagMember) { continue; }
+                    string str = AddMemberToText(wrestler, participantCtr, sidesWrestlers[i].Count);
+                    test += str + wrestler.name;
+                    participantCtr++;
+                    singlesMemberBeforeTag = true;
+                }
+
+                foreach(TagTeam t in sidesTeams[i])
+                {
+                    if (singlesMemberBeforeTag) { test += " & "; }
+                    test += t.name + " (";
+                    participantCtr = 0;
+                    foreach(Wrestler w in t.wrestlers)
+                    {
+                        string str = AddMemberToText(w, participantCtr, t.wrestlers.Count);
+                        test += str + w.name;
+                        participantCtr++;
+                    }
+                    test += ")";
+                }
+
+                if (sidesManagers[i].Count > 0)
+                {
+                    test += " (w/";
+                    participantCtr = 0;
+                    foreach (Wrestler wrestler in sidesManagers[i])
+                    {
+                        string str = AddMemberToText(wrestler, participantCtr, sidesManagers[i].Count);
+                        test += str + wrestler.name;
+                        participantCtr++;
+                    }
+                    test += ")";
+                }
+
+                if (sidesWrestlers[0].Count < 2 && i != sidesWrestlers.Count - 1) { test += " defeats "; }
+                else if (i != sidesWrestlers.Count - 1)
+                {
+                    test += " defeat ";
+                }
+
+            }
+            if (length != null) { test += $" ({length})"; }
+            parseddesc = test;
+            if (test == textdesc) { return true; }
+            else { return false; }
+        }
+
+        private string AddMemberToText(Wrestler w, int ctr,int length)
+        {
+            string str = "";
+            if (ctr > 0)
+            {
+                str = ", ";
+                if (ctr == length - 1)
+                {
+                    str = " & ";
+                }
+            }
+            
+            return str;
+        }
 
         public string POSTdata()
         {
@@ -393,6 +480,7 @@ namespace CageMatchScraper
                 {
                     WrestlingMatch match = new WrestlingMatch();
                     match.data = value.InnerHtml;
+                    match.textdesc = value.InnerText;
                     string[] nameandtime = value.InnerHtml.Split(':');
                     for(int i=0;i<nameandtime.Length;i++)
                     {
@@ -427,15 +515,25 @@ namespace CageMatchScraper
                         List<Wrestler> participants = new List<Wrestler>();
                         List<Wrestler> nonparticipants = new List<Wrestler>();
                         List<TagTeam> teams = new List<TagTeam>();
-
+                        TagTeam team = new TagTeam();
+                        
                         string teamEntry = Between(side, "(", ")");
                         string otherMembers = side;
                         if (side.Contains("(") && teamEntry.Length > 5 && !teamEntry.Contains("w/"))// tag team, or match length if the entry is short(<5characters).
                         {
                             //add TagTeam name to a match description?
                             //string teamEntry = Between(side, "(", ")");
-                            TagTeam team = new TagTeam();
+                            
                             team.name = Between(side, ">", "</a> (",true);
+                            //matches with multiple teams dont parse right.
+                            //redo this and eliminate items piece by piece.
+                            int typeID = 0;
+                            string src = Between(side, "<", "</a> (", true);
+                            string text = Between(src, "id=", "&");
+                            int.TryParse(text, out typeID);
+                            int.TryParse(Between(src, "nr=", "&"), out team.teamID);
+
+                            if (typeID == (int)RequestType.STABLE) { team.isStable = true; }
 
                             List<Wrestler> teamMembers = ParseParticipants(teamEntry);
                             participants.AddRange(teamMembers);
@@ -446,9 +544,8 @@ namespace CageMatchScraper
                             {
                                 otherMembers = Between(side, "", "("); 
                             }
-                            int.TryParse(Between(side, "nr=", "&"), out team.teamID);
                             teams.Add(team);
-                            match.sidesTeams.Add(teams);
+                            
                         }
                         string managers = Between(side, "(w/", ")");
                         if(managers.Length > 0) { nonparticipants = ParseParticipants(managers); }
@@ -468,6 +565,7 @@ namespace CageMatchScraper
                             }
                         }
                         match.sidesWrestlers.Add(participants);
+                        match.sidesTeams.Add(teams);
                     }
                     //match title: <span class= "MatchType"> - doesnt exist for every match.
                     //only shows ENTERTAINMENT - maybe its not escaping the string for post.
@@ -491,9 +589,15 @@ namespace CageMatchScraper
                     {
                         events.AddTags(teams);
                     }
+                    bool failedScrape = !match.VerifyScrape();
+                    if (failedScrape) { Console.WriteLine("Failed Scrape: " + match.parseddesc); }
                 }
                 Console.WriteLine(evt);
-                events.events.Add(evt.name,evt);
+                if(!events.events.ContainsKey(evt.name))
+                {
+                    events.events.Add(evt.name, evt);
+                }
+                
             }
             
             return events;
