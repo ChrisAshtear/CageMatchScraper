@@ -10,6 +10,8 @@ Dictionary<string, string> data = s.ParseEntry (response2, "InformationBoxTitle"
 WrestlingPromotion fed = new WrestlingPromotion(data, 2287);
 
 var response3 = Scraper.GetEntry(RequestType.PROMOTION, 2287, PageType.RESULTS);
+response3+= Scraper.GetEntry(RequestType.PROMOTION, 2287, PageType.RESULTS,1);
+response3+= Scraper.GetEntry(RequestType.PROMOTION, 2287, PageType.RESULTS,2);
 EventResults data2 = s.ParseList(response3,fed.fed_id,new TagInfo { htmlElement="div", className="QuickResults"}, new TagInfo { className= "QuickResultsHeader", htmlElement="div"}, new TagInfo { className = "MatchResults", htmlElement = "span" });
 
 SendData send = new SendData("http://localhost:3001");
@@ -22,6 +24,9 @@ foreach(Wrestler w in data2.wrestlers)
 {
     w.sendData(send);
 }*/
+Rank r = new Rank();
+r.startRank(data2);
+
 foreach(TagTeam team in data2.tags)
 {
     team.sendData(send);

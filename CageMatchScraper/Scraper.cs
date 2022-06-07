@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Net;
 using System.Text;
 using System.IO;
-
+using Glicko2;
 
 
 namespace CageMatchScraper
@@ -116,6 +116,12 @@ namespace CageMatchScraper
         public int teamID;
         public List<Wrestler> wrestlers = new List<Wrestler>();
         public bool isStable = false;
+        public Record record = new Record();
+
+        public TagTeam()
+        {
+            record.isTeam = true;
+        }
 
         public string POSTdata()
         {
@@ -155,10 +161,39 @@ namespace CageMatchScraper
         }
     }
 
+    public class Record
+    {
+        public int wrestlerID;
+        public bool isTeam;
+        public GlickoPlayer self = new GlickoPlayer();
+        public List<WrestlingMatch> wins = new List<WrestlingMatch>();
+        public List<WrestlingMatch> losses = new List<WrestlingMatch>();
+        public List<RecordItem> opponentsRank = new List<RecordItem>();
+        public int score;
+        public int winCount;
+        public int lossCount;
+        public int draws;
+
+        public void AddResult(List<Wrestler> opponents, bool win)
+        {
+            foreach (Wrestler w in opponents)
+            {
+                opponentsRank.Add(new RecordItem { opponent = w, win = win }); 
+            }
+        }
+    }
+
+    public class RecordItem
+    {
+        public Wrestler opponent;
+        public bool win;
+    }
+
     public class Wrestler : Object,IWebDataOut
     {
         public string name;
         public int wrestlerID;
+        public Record record = new Record();
 
         public string POSTdata()
         {
@@ -390,9 +425,11 @@ namespace CageMatchScraper
             return await response;
         }
 
-        public static string GetEntry(RequestType type, int promotionID, PageType pageNum = PageType.OVERVIEW)
+        public static string GetEntry(RequestType type, int promotionID, PageType pageNum = PageType.OVERVIEW, int resultPage=0)
         {
-            string url = baseURL + "id="+(int)type+"&nr=" + promotionID;
+            string rpg = "";
+            if (resultPage > 0) { rpg = $"&s={resultPage * 100}"; }
+            string url = baseURL + "id="+(int)type+"&nr=" + promotionID+rpg;
             if(pageNum >= 0) { url += "&page=" + (int)pageNum; }
             return CallUrl(url).Result;
         }
