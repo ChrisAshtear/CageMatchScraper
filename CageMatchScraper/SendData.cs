@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,7 +16,7 @@ namespace CageMatchScraper
             url = baseURL;
         }
 
-        public bool sendData(API.apiCall calltype, IWebDataOut webOut, string postDat="")
+        public string sendData(API.apiCall calltype, IWebDataOut webOut, string postDat="", byte[] extraData=null)
         {
             string address = url + "/" + API.Call(calltype);
 
@@ -23,10 +24,38 @@ namespace CageMatchScraper
             if(postDat != "") { postData = postDat; }
             Console.WriteLine("\n" + postData + "\n");
             byte[] byteArray = Encoding.UTF8.GetBytes(postData);
+
+            byte[] final = byteArray;
+            if(extraData!=null)
+            {
+                final = byteArray.Concat(extraData).ToArray();
+            }
             return sendWebData(address, byteArray);
         }
 
-        private bool sendWebData(string url, byte[] byteArray)
+        public HttpResponseMessage SendFormData(API.apiCall calltype, MultipartFormDataContent formdata)
+        {
+            string address = url + "/" + API.Call(calltype);
+            HttpClient client = new HttpClient();
+            
+            client.DefaultRequestHeaders.Host = new Uri(address).Host;
+            var response = client.PostAsync(address, formdata);
+            response.Wait();
+
+            // Get the stream containing content returned by the server.  
+            // The using block ensures the stream is automatically closed.
+            // Open the stream using a StreamReader for easy access.  
+            StreamReader reader = new StreamReader(response.Result.Content.ReadAsStream());
+            // Read the content.  
+            string responseFromServer = reader.ReadToEnd();
+            // Display the content.  
+            Console.WriteLine(responseFromServer);
+
+
+            return response.Result;
+        }
+
+        private string sendWebData(string url, byte[] byteArray)
         {
             try
             {
@@ -38,7 +67,7 @@ namespace CageMatchScraper
                 request.ContentType = "application/x-www-form-urlencoded";
                 // Set the ContentLength property of the WebRequest.  
                 request.ContentLength = byteArray.Length;
-
+                request.Headers.Add("Content-Transfer-Encoding: base64");
                 // Get the request stream.  
                 Stream dataStream = request.GetRequestStream();
                 // Write the data to the request stream.  
@@ -49,6 +78,7 @@ namespace CageMatchScraper
                 // Get the response.  
                 WebResponse response = request.GetResponse();
                 // Display the status.  
+                string responseFromServer;
                 Console.WriteLine(((HttpWebResponse)response).StatusDescription);
                 // Get the stream containing content returned by the server.  
                 // The using block ensures the stream is automatically closed.
@@ -57,19 +87,19 @@ namespace CageMatchScraper
                     // Open the stream using a StreamReader for easy access.  
                     StreamReader reader = new StreamReader(dataStream);
                     // Read the content.  
-                    string responseFromServer = reader.ReadToEnd();
+                    responseFromServer = reader.ReadToEnd();
                     // Display the content.  
                     Console.WriteLine(responseFromServer);
                 }
 
                 // Close the response.  
                 response.Close();
-                return true;
+                return responseFromServer;
             }
             catch (Exception e)
             {
                 Console.WriteLine("Error: " + e.Message + e.StackTrace + e.Source);
-                return false;
+                return "error";
             }
         }
     }

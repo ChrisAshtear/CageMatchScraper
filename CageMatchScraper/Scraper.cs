@@ -194,15 +194,58 @@ namespace CageMatchScraper
         public string name;
         public int wrestlerID;
         public Record record = new Record();
-
+        public Dictionary<string,string> stats = new Dictionary<string,string>();
+        public int age;
+        public string birthplace;
+        public string gender;
+        public string height;
+        public string weight;
+        public string sportsBG;
+        public string inringstart;
+        public string experience;
+        public string style;
+        public string nicknames;
+        public string trainer;
+        public string finisher;
+        public DateTime debut;
+        public byte[] picture;
         public string POSTdata()
         {
+            //byte array needs to be built, just doing a tostring results in System[byte] or something not useful
             return $"name={name}&worker_id={wrestlerID}";
         }
 
+        public string POSTdataAll()
+        {
+            //byte array needs to be built, just doing a tostring results in System[byte] or something not useful
+            return $"name={name}&worker_id={wrestlerID}&birthplace={birthplace}&style={style}&nicknames={nicknames}&sportsBG={sportsBG}&experience={experience}&inringstart={inringstart}&trainer={trainer}&finisher={finisher}&height={height}&weight={weight}&age={age}&gender={gender}";
+        }
         public bool sendData(SendData ins)
         {
-            ins.sendData(API.apiCall.ADDWORKER, this);
+            //ins.sendData(API.apiCall.ADDWORKER, this,"",picture);
+            string[] fields = POSTdataAll().Split('&');
+            MultipartFormDataContent form = new MultipartFormDataContent();
+            foreach (string field in fields)
+            {
+                string[] f = field.Split('=');
+                if(f.Length < 2) { continue; }
+                string fname = f[0];
+                string fvalue = f[1];
+                StringContent strc = new StringContent(fvalue);
+                strc.Headers.ContentType = null;
+                form.Add(strc, fname);
+            }
+
+            if (this.picture == null)
+            {
+                this.picture = new byte[4];
+            }
+            ByteArrayContent pic = new ByteArrayContent(picture, 0, picture.Length);
+            pic.Headers.ContentType = MediaTypeHeaderValue.Parse("plain/text");
+            
+            form.Add(pic, "picture");
+            HttpResponseMessage res = ins.SendFormData(API.apiCall.ADDWORKER,form);
+            Console.WriteLine(res.Content.ToString());
             return true;
         }
 
@@ -317,13 +360,13 @@ namespace CageMatchScraper
                 foreach (Wrestler wrestler in sidesWrestlers[i])
                 {
                     string postDat = wrestler.POSTdata();
-                    postDat += $"&side={i}&is_participant=1";
+                    postDat += $"&side={i}&match_id={matchID}&is_participant=1";
                     ins.sendData(API.apiCall.ADDPARTICIPANT, this, postDat);
                 }
                 foreach (Wrestler wrestler in sidesManagers[i])
                 {
                     string postDat = wrestler.POSTdata();
-                    postDat += $"&side={i}&is_participant=0";
+                    postDat += $"&side={i}&match_id={matchID}&is_participant=0";
                     ins.sendData(API.apiCall.ADDPARTICIPANT, this, postDat);
                 }
             }
@@ -412,6 +455,7 @@ namespace CageMatchScraper
     public class Scraper
     {
         private static string baseURL = "https://www.cagematch.net/?";// id=2&nr=16006";
+        private static string imgURL = "https://prowrestling.fandom.com/wiki/";
         private string url;
         public Scraper()
         {
@@ -432,6 +476,36 @@ namespace CageMatchScraper
             string url = baseURL + "id="+(int)type+"&nr=" + promotionID+rpg;
             if(pageNum >= 0) { url += "&page=" + (int)pageNum; }
             return CallUrl(url).Result;
+        }
+
+        public byte[] GetImg(string wrestlerName)
+        {  
+            try
+            {
+                string url = imgURL + wrestlerName;
+                string result = CallUrl(url).Result;
+                List<HtmlAgilityPack.HtmlNode> nodes = GetHtmlElements(result, "img", "pi-image-thumbnail");
+                if (nodes.Count == 0) { return null; }
+                string imgurl = Between(nodes[0].OuterHtml, "src=\"", "\"");
+                var webClient = new WebClient();
+                byte[] imageBytes = webClient.DownloadData(imgurl);
+                return imageBytes;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                byte[] nullimg = new byte[4];
+                return nullimg;
+            }
+        }
+
+        public List<HtmlAgilityPack.HtmlNode> GetHtmlElements(string html, string elementName, string className)
+        {
+            HtmlDocument htmlDoc = new HtmlDocument();
+            htmlDoc.LoadHtml(html);
+            var names = htmlDoc.DocumentNode.Descendants(elementName)
+                    .Where(node => node.GetAttributeValue("class", "").Contains(className)).ToList();
+            return names;
         }
 
         public Dictionary<string, string> ParseEntry(string html, string className, string classValue)
