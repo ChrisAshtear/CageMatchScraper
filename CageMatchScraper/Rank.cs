@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CageMatchScraper.DataObjects;
 
 namespace CageMatchScraper
 {
@@ -14,6 +15,10 @@ namespace CageMatchScraper
             foreach(Wrestler w in e.wrestlers)
             {
                 glickoRanks.Add(w.wrestlerID, w);
+                //tag teams should have their own collective record.
+                w.record.Add(RecordType.Singles, new Record());
+                w.record.Add(RecordType.Tag, new Record());
+                w.record.Add(RecordType.Trios, new Record());
             }
             foreach (WrestlingEvent evt in e.events.Values.Reverse())
             {
@@ -34,21 +39,21 @@ namespace CageMatchScraper
                         inMatch = true;
                         if (i == m.victor)
                         {
-                            w.record.winCount++;
-                            w.record.wins.Add(m);
+                            w.record[m.matchType].winCount++;
+                            w.record[m.matchType].wins.Add(m);
                             won = true;
                             //win
                         }
                         else if(m.victor != -1)
                         {
-                            w.record.lossCount++;
-                            w.record.losses.Add(m);
+                            w.record[m.matchType].lossCount++;
+                            w.record[m.matchType].losses.Add(m);
                             won = false;
                             //loss
                         }
                         else
                         {
-                            w.record.draws++;
+                            w.record[m.matchType].draws++;
                         }
                         opponents.Clear();
                         foreach (List<Wrestler> opp in m.sidesWrestlers)
@@ -58,7 +63,7 @@ namespace CageMatchScraper
                                 opponents.AddRange(opp);
                             }
                         }
-                        w.record.AddResult(opponents, won);
+                        w.record[m.matchType].AddResult(opponents, won);
                         glickoRanks[w.wrestlerID] = w;
                     }
                         
@@ -75,17 +80,18 @@ namespace CageMatchScraper
         {
             foreach (Wrestler w in e.wrestlers)
             {
+                Record rec = w.record[RecordType.Singles];
                 //w.record.self = new Glicko2.GlickoPlayer();
                 List<Glicko2.GlickoOpponent> opponents = new List<Glicko2.GlickoOpponent>();
-                foreach(RecordItem r in w.record.opponentsRank)
+                foreach(RecordItem r in rec.opponentsRank)
                 {
-                    opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.wrestlerID].record.self, Convert.ToInt16(r.win)));
+                    opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.wrestlerID].record[RecordType.Singles].self, Convert.ToInt16(r.win)));
                 }
-                w.record.self = Glicko2.GlickoCalculator.CalculateRanking(w.record.self, opponents);
-                w.record.opponentsRank.Clear();//clear rankings
-                if (w.record.self.RatingDeviation < 200)//193 has a lot of results??
+                rec.self = Glicko2.GlickoCalculator.CalculateRanking(rec.self, opponents);
+                rec.opponentsRank.Clear();//clear rankings
+                if (rec.self.RatingDeviation < 200)//193 has a lot of results??
                 {
-                    Console.WriteLine($"{w.name}: Wins:{w.record.winCount},Losses:{w.record.lossCount}, Glicko: {w.record.self.GlickoRating}, Rating:{w.record.self.Rating} - dev: {w.record.self.RatingDeviation}");
+                    Console.WriteLine($"{w.name}: Wins:{rec.winCount},Losses:{rec.lossCount}, Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
                 }
             }
         }

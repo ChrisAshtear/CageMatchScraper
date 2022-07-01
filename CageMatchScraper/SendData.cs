@@ -33,26 +33,51 @@ namespace CageMatchScraper
             return sendWebData(address, byteArray);
         }
 
+        public MultipartFormDataContent POSTtoFormData(string PostData)
+        {
+            string[] fields = PostData.Split('&');
+            MultipartFormDataContent form = new MultipartFormDataContent();
+            foreach (string field in fields)
+            {
+                string[] f = field.Split('=');
+                if (f.Length < 2) { continue; }
+                string fname = f[0];
+                string fvalue = f[1];
+                StringContent strc = new StringContent(fvalue);
+                strc.Headers.ContentType = null;
+                form.Add(strc, fname);
+            }
+            return form;
+        }
+
         public HttpResponseMessage SendFormData(API.apiCall calltype, MultipartFormDataContent formdata)
         {
-            string address = url + "/" + API.Call(calltype);
-            HttpClient client = new HttpClient();
-            
-            client.DefaultRequestHeaders.Host = new Uri(address).Host;
-            var response = client.PostAsync(address, formdata);
-            response.Wait();
+            try
+            {
+                string address = url + "/" + API.Call(calltype);
+                HttpClient client = new HttpClient();
 
-            // Get the stream containing content returned by the server.  
-            // The using block ensures the stream is automatically closed.
-            // Open the stream using a StreamReader for easy access.  
-            StreamReader reader = new StreamReader(response.Result.Content.ReadAsStream());
-            // Read the content.  
-            string responseFromServer = reader.ReadToEnd();
-            // Display the content.  
-            Console.WriteLine(responseFromServer);
+                client.DefaultRequestHeaders.Host = new Uri(address).Host;
+                var response = client.PostAsync(address, formdata);
+                response.Wait();
+
+                // Get the stream containing content returned by the server.  
+                // The using block ensures the stream is automatically closed.
+                // Open the stream using a StreamReader for easy access.  
+                StreamReader reader = new StreamReader(response.Result.Content.ReadAsStream());
+                // Read the content.  
+                string responseFromServer = reader.ReadToEnd();
+                // Display the content.  
+                Console.WriteLine(responseFromServer);
 
 
-            return response.Result;
+                return response.Result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
         }
 
         private string sendWebData(string url, byte[] byteArray)
