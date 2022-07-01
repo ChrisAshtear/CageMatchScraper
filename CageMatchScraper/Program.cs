@@ -15,7 +15,7 @@ response3+= Scraper.GetEntry(RequestType.PROMOTION, 2287, PageType.RESULTS,1);
 response3+= Scraper.GetEntry(RequestType.PROMOTION, 2287, PageType.RESULTS,2);
 EventResults data2 = s.ParseEvents(response3,fed.fed_id,new TagInfo { htmlElement="div", className="QuickResults"}, new TagInfo { className= "QuickResultsHeader", htmlElement="div"}, new TagInfo { className = "MatchResults", htmlElement = "span" });
 var response5 = Scraper.GetEntry(RequestType.PROMOTION, 2287, PageType.TITLES);
-s.ParseTitle(response5);
+fed.titles = s.ParseTitle(response5,2287);
 
 
 SendData send = new SendData("http://localhost:3001");

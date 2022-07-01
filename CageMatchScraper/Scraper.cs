@@ -7,6 +7,7 @@ using System.Text;
 using System.IO;
 using Glicko2;
 using CageMatchScraper.DataObjects;
+using System.Globalization;
 
 namespace CageMatchScraper
 {
@@ -60,6 +61,7 @@ namespace CageMatchScraper
     {
         OVERVIEW = -1,
         NEWS = 2,
+        STATISTICS = 3,
         EVENTS = 4,
         EVENTSTATS = 19,
         RESULTS = 8,
@@ -73,43 +75,6 @@ namespace CageMatchScraper
         RIVALRIES = 14,
         RATINGS = 98
     }
-
-
-
-    public static class API
-    {
-        public enum apiCall
-        {
-            ADDEVENT = 0,
-            ADDFED = 1,
-            ADDMATCH = 2,
-            ADDPARTICIPANT = 3,
-            ADDWORKER = 4,
-            ADDTEAM = 5,
-            ADDTEAM_MEMBER = 6,
-            ADDWORKER_RECORD = 7,
-            ADDIMAGE = 8,
-        }
-
-        private static string[] apicalls = {
-            "addevent",
-            "addfed",
-            "addmatch",
-            "addmatchparticipant",
-            "addworker",
-            "addteam",
-            "addteammember",
-            "addrecord",
-            "addimage"
-        };
-
-        public static string Call(apiCall calltype)
-        {
-            return apicalls[(int)calltype];
-        }
-    }
-
-
     public struct TagInfo
     {
         public string htmlElement;
@@ -196,7 +161,7 @@ namespace CageMatchScraper
 
         }
 
-        public List<Title> ParseTitle(string html)
+        public List<Title> ParseTitle(string html,int promotion_id)
         {
             HtmlDocument htmlDoc = new HtmlDocument();
             htmlDoc.LoadHtml(html);
@@ -210,6 +175,7 @@ namespace CageMatchScraper
 
                 var entry = rows[i].Descendants("td").Where(node => node.GetAttributeValue("class", "").Contains("TCol")).ToList();
                 Title t = new Title();
+                t.promotion_id = promotion_id;
                 TitleReign reign = new TitleReign();
                 for (int x=0;x<entry.Count; x++)
                 {
@@ -224,16 +190,49 @@ namespace CageMatchScraper
                     {
                         string field = entry[x].InnerHtml;
                         reign.holder_id = int.Parse(Between(field, "nr=", "&"));
-                        
                     }
                     if(x==3)
                     {
-                        string field = entry[x].InnerHtml;
-                        
+                        var cultureInfo = new CultureInfo("de-DE");
+                        string field = Between(entry[x].InnerHtml, "", "&");
+                        reign.reignStart = DateTime.Parse(field, cultureInfo);
                     }
                 }
                 t.currentReign = reign;
                 titles.Add(t);
+
+                var response = Scraper.GetEntry(RequestType.TITLE, t.title_id, PageType.NEWS);
+                HtmlDocument titleDoc = new HtmlDocument();
+                titleDoc.LoadHtml(response);
+                var rowsReigns = titleDoc.DocumentNode.Descendants("tr")
+                    .Where(node => node.GetAttributeValue("class", "").Contains("TRow")).ToList();
+
+                foreach (var row in rowsReigns)
+                {
+                    TitleReign r = new TitleReign();
+                    var entryReign = row.Descendants("td").Where(node => node.GetAttributeValue("class", "").Contains("TCol")).ToList();
+                    for (int x = 0; x < entry.Count; x++)
+                    {
+                        if (x == 1)//workerid
+                        {
+                            if (entryReign[x].InnerText == "VACANT") { continue; }
+                            string field = entryReign[x].InnerHtml;
+                            r.holder_id = int.Parse(Between(field, "nr=", "&"));
+                        }
+                        if (x == 2)
+                        {
+                            //need to use page '2' instead of 3 to get reign dates. or make a seperate reign, comma seperated.
+                            var cultureInfo = new CultureInfo("de-DE");
+                            r.reignStart = DateTime.Parse(entryReign[x].InnerText, cultureInfo);
+                        }
+                        if(x == 3)
+                        {
+                            int.TryParse(Between(entryReign[x].InnerText, "", "&"), out r.length);
+                            r.reignEnd = r.reignStart.AddDays(r.length);
+                        }
+                    }
+                    t.reigns.Add(r);
+                }
             }
 
             return titles;

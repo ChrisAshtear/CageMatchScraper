@@ -25,6 +25,11 @@ namespace CageMatchScraper.DataObjects
         public bool sendData(SendData ins)
         {
             ins.sendData(API.apiCall.ADDFED, this);
+
+            foreach(Title t in titles)
+            {
+                t.sendData(ins);
+            }
             return true;
         }
 
