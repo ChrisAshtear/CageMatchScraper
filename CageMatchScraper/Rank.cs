@@ -11,7 +11,8 @@ namespace CageMatchScraper
     {
         public void startRank(EventResults e)
         {
-            Dictionary<int,Wrestler> glickoRanks = new Dictionary<int,Wrestler>();
+            Dictionary<int, I_Competitor> glickoRanks = new Dictionary<int,I_Competitor>();
+            Dictionary<int,I_Competitor> glickoRanksTag = new Dictionary<int,I_Competitor>();
             foreach(Wrestler w in e.wrestlers)
             {
                 glickoRanks.Add(w.wrestlerID, w);
@@ -20,63 +21,115 @@ namespace CageMatchScraper
                 w.record.Add(RecordType.Tag, new Record());
                 w.record.Add(RecordType.Trios, new Record());
             }
-            foreach (WrestlingEvent evt in e.events.Values.Reverse())
+            runRank(glickoRanks, e.events);
+
+            foreach(TagTeam t in e.tags)
             {
-                foreach(WrestlingMatch m in evt.matches)
+                glickoRanksTag.Add(t.teamID, t);
+            }
+
+            runRank(glickoRanksTag, e.events,true);
+        }
+
+        public void runRank(Dictionary<int,I_Competitor> competitors, Dictionary<string,WrestlingEvent> events, bool isTag=false)
+        {
+            foreach (WrestlingEvent evt in events.Values.Reverse())
+            {
+                foreach (WrestlingMatch m in evt.matches)
                 {
-                    if (m.sidesWrestlers.Count > 2) { continue; }//triple threat or battle royal.
-                    List<Wrestler> opponents = new List<Wrestler>();
+                    List<List<I_Competitor>> sides = new List<List<I_Competitor>>();
+                    if(!isTag)
+                    {
+                        foreach (List<Wrestler> s in m.sidesWrestlers)
+                        {
+                            sides.Add(s.ToList<I_Competitor>());
+                        }
+                    }
+                    else
+                    {
+                        foreach (List<TagTeam> s in m.sidesTeams)
+                        {
+                            sides.Add(s.ToList<I_Competitor>());
+                        }
+                    }
+                    if (sides[0].Count == 0) { continue; }
+                    if (sides.Count > 2) { continue; }//triple threat or battle royal.
+                    List<I_Competitor> opponents = new List<I_Competitor>();
                     bool won = false;
                     bool inMatch = false;
-                    if(m.sidesWrestlers[0].Count !=1) { continue; }//skip multi-man matches for now.
-                    for (int i = 0; i < m.sidesWrestlers.Count; i++)
+                    if (sides[0].Count != 1) { continue; }//skip multi-man matches for now.
+                    for (int i = 0; i < sides.Count; i++)
                     {
-                        if (m.sidesWrestlers[i].Count == 0) { continue; }
-                        List<Wrestler> wrestlers = m.sidesWrestlers[i];
-                        Wrestler w = m.sidesWrestlers[i][0];
-                        if (w.wrestlerID == 0) { continue; }
-                        w = glickoRanks[w.wrestlerID];
+                        if (sides[i].Count == 0) { continue; }
+                        List<I_Competitor> wrestlers = sides[i];
+                        I_Competitor w = sides[i][0];
+                        if (w.objectID == 0) { continue; }
+                        w = competitors[w.objectID];
                         inMatch = true;
                         if (i == m.victor)
                         {
-                            w.record[m.matchType].winCount++;
-                            w.record[m.matchType].wins.Add(m);
+                            w.objRecord.winCount++;
+                            w.objRecord.wins.Add(m);
                             won = true;
                             //win
                         }
-                        else if(m.victor != -1)
+                        else if (m.victor != -1)
                         {
-                            w.record[m.matchType].lossCount++;
-                            w.record[m.matchType].losses.Add(m);
+                            w.objRecord.lossCount++;
+                            w.objRecord.losses.Add(m);
                             won = false;
                             //loss
                         }
                         else
                         {
-                            w.record[m.matchType].draws++;
+                            w.objRecord.draws++;
                         }
                         opponents.Clear();
                         foreach (List<Wrestler> opp in m.sidesWrestlers)
                         {
-                            if(m.sidesWrestlers[i] != opp && m.sidesWrestlers[i][0].wrestlerID != 0)
+
+                            if (m.sidesWrestlers[i] != opp && sides[i][0].objectID != 0)
                             {
                                 opponents.AddRange(opp);
                             }
                         }
-                        w.record[m.matchType].AddResult(opponents, won);
-                        glickoRanks[w.wrestlerID] = w;
+                        w.objRecord.AddResult(opponents, won);
+                        competitors[w.objectID] = w;
                     }
-                        
+
                 }
                 Console.WriteLine($"Rankings as of: {evt.name}");
-                OutputRankings(e,ref glickoRanks);
+                OutputRankings(competitors.Values.ToList(), ref competitors);
             }
-                
             Console.WriteLine($"Final Rankings with");
-            OutputRankings(e, ref glickoRanks);
+            OutputRankings(competitors.Values.ToList(), ref competitors);
         }
 
-        public void OutputRankings(EventResults e,ref Dictionary<int,Wrestler> rankings)
+        public void OutputRankings(List<I_Competitor> competitors, ref Dictionary<int, I_Competitor> rankings)
+        {
+            foreach (I_Competitor w in competitors)
+            {
+                Record rec = w.objRecord;
+                //w.record.self = new Glicko2.GlickoPlayer();
+                List<Glicko2.GlickoOpponent> opponents = new List<Glicko2.GlickoOpponent>();
+                foreach (RecordItem r in rec.opponentsRank)
+                {
+                    if(rankings.ContainsKey(r.opponent.objectID))
+                    { 
+                        opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.objectID].objRecord.self, Convert.ToInt16(r.win))); 
+                    }
+                    else { Console.WriteLine("Couldnt find " + r.opponent.objectID); }
+                }
+                rec.self = Glicko2.GlickoCalculator.CalculateRanking(rec.self, opponents);
+                rec.opponentsRank.Clear();//clear rankings
+                if (rec.self.RatingDeviation < 200)//193 has a lot of results??
+                {
+                    Console.WriteLine($"{w.Name}: Wins:{rec.winCount},Losses:{rec.lossCount}, Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
+                }
+            }
+        }
+
+        public void OutputRankings(EventResults e,ref Dictionary<int,I_Competitor> rankings)
         {
             foreach (Wrestler w in e.wrestlers)
             {
@@ -85,7 +138,7 @@ namespace CageMatchScraper
                 List<Glicko2.GlickoOpponent> opponents = new List<Glicko2.GlickoOpponent>();
                 foreach(RecordItem r in rec.opponentsRank)
                 {
-                    opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.wrestlerID].record[RecordType.Singles].self, Convert.ToInt16(r.win)));
+                    opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.objectID].objRecord.self, Convert.ToInt16(r.win)));
                 }
                 rec.self = Glicko2.GlickoCalculator.CalculateRanking(rec.self, opponents);
                 rec.opponentsRank.Clear();//clear rankings

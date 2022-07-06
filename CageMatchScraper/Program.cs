@@ -22,7 +22,7 @@ SendData send = new SendData("http://localhost:3001");
 fed.sendData(send);
 foreach(WrestlingEvent evt in data2.events.Values)
 {
-    evt.sendData(send);
+    //evt.sendData(send);
 }
 Rank r = new Rank();
 r.startRank(data2);

@@ -6,13 +6,18 @@ using System.Threading.Tasks;
 
 namespace CageMatchScraper.DataObjects
 {
-    public class TagTeam : Object, IWebDataOut
+    public class TagTeam : Object, IWebDataOut,I_Competitor
     {
         public string name;
         public int teamID;
         public List<Wrestler> wrestlers = new List<Wrestler>();
         public bool isStable = false;
         public Record record = new Record();
+
+        public int objectID { get { return teamID; } set { teamID = value; } }
+        public string Name { get { return name; } }
+
+        public Record objRecord { get { return record; } set { record = value; } }
 
         public TagTeam()
         {

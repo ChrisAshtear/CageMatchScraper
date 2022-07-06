@@ -21,9 +21,9 @@ namespace CageMatchScraper.DataObjects
         public int lossCount;
         public int draws;
 
-        public void AddResult(List<Wrestler> opponents, bool win)
+        public void AddResult(List<I_Competitor> opponents, bool win)//does this not count draws?
         {
-            foreach (Wrestler w in opponents)
+            foreach (I_Competitor w in opponents)
             {
                 opponentsRank.Add(new RecordItem { opponent = w, win = win });
             }
@@ -32,7 +32,7 @@ namespace CageMatchScraper.DataObjects
 
     public class RecordItem
     {
-        public Wrestler opponent;
+        public I_Competitor opponent;
         public bool win;
     }
 

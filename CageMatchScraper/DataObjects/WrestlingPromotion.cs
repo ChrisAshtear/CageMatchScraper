@@ -19,7 +19,7 @@ namespace CageMatchScraper.DataObjects
 
         public string POSTdata()
         {
-            return $"fed_id={fed_id}&name={name}&initials={initials}&site={website}";
+            return $"fed_id={fed_id}&name={name}&initials={initials}&website={website}";
         }
 
         public bool sendData(SendData ins)

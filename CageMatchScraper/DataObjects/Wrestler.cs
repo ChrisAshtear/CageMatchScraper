@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace CageMatchScraper.DataObjects
 {
-    public class Wrestler : Object, IWebDataOut
+    public class Wrestler : Object, IWebDataOut,I_Competitor
     {
         public string name;
         public int wrestlerID;
@@ -27,6 +27,12 @@ namespace CageMatchScraper.DataObjects
         public string finisher;
         public DateTime debut;
         public byte[] picture;
+
+        public int objectID { get { return wrestlerID; }  set { wrestlerID = value; } }
+        public string Name { get { return name; }}
+
+        public Record objRecord { get { return record[RecordType.Singles]; } set { record[RecordType.Singles] = value; } }
+
         public string POSTdata()
         {
             //byte array needs to be built, just doing a tostring results in System[byte] or something not useful

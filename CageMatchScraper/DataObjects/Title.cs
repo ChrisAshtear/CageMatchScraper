@@ -16,7 +16,8 @@ namespace CageMatchScraper.DataObjects
 
         public string POSTdata()
         {
-            return $"holder_id={holder_id}&title_id={title_id}&length={length}&reign_start={reignStart.ToString()}";
+            //need reignend
+            return $"holder_id={holder_id}&title_id={title_id}&length={length}&reignstart={reignStart.ToString("yyyy-MM-dd")}";
         }
 
         public bool sendData(SendData ins)
@@ -34,10 +35,11 @@ namespace CageMatchScraper.DataObjects
         public List<TitleReign> reigns = new List<TitleReign>();
         public int promotion_id;
         public RecordType title_type;
+        public Division division;
 
         public string POSTdata()
         {
-            return $"name={name}&title_id={title_id}&promotion_id={promotion_id}&title_type={title_type.ToString().ToLower()}";
+            return $"name={name}&title_id={title_id}&fed_id={promotion_id}&division={division}&type={title_type.ToString().ToLower()}";
         }
 
         public bool sendData(SendData ins)
