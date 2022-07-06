@@ -21,11 +21,11 @@ namespace CageMatchScraper.DataObjects
         public int lossCount;
         public int draws;
 
-        public void AddResult(List<I_Competitor> opponents, bool win)//does this not count draws?
+        public void AddResult(List<I_Competitor> opponents, MatchResult result)//does this not count draws?
         {
             foreach (I_Competitor w in opponents)
             {
-                opponentsRank.Add(new RecordItem { opponent = w, win = win });
+                opponentsRank.Add(new RecordItem { opponent = w, result = result });
             }
         }
     }
@@ -33,8 +33,9 @@ namespace CageMatchScraper.DataObjects
     public class RecordItem
     {
         public I_Competitor opponent;
-        public bool win;
+        public MatchResult result;
     }
+    public enum MatchResult { Win=2,Lose=0,Draw=1}
 
     public enum RecordType { Singles = 1, Tag = 2, Trios = 3, Special = 5 };
     public enum Division { Men, Women, Mixed };

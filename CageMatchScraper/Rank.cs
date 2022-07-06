@@ -55,7 +55,7 @@ namespace CageMatchScraper
                     if (sides[0].Count == 0) { continue; }
                     if (sides.Count > 2) { continue; }//triple threat or battle royal.
                     List<I_Competitor> opponents = new List<I_Competitor>();
-                    bool won = false;
+                    MatchResult result = MatchResult.Lose;
                     bool inMatch = false;
                     if (sides[0].Count != 1) { continue; }//skip multi-man matches for now.
                     for (int i = 0; i < sides.Count; i++)
@@ -70,18 +70,19 @@ namespace CageMatchScraper
                         {
                             w.objRecord.winCount++;
                             w.objRecord.wins.Add(m);
-                            won = true;
+                            result = MatchResult.Win;
                             //win
                         }
                         else if (m.victor != -1)
                         {
                             w.objRecord.lossCount++;
                             w.objRecord.losses.Add(m);
-                            won = false;
+                            result = MatchResult.Lose;
                             //loss
                         }
                         else
                         {
+                            result = MatchResult.Draw;
                             w.objRecord.draws++;
                         }
                         opponents.Clear();
@@ -93,7 +94,7 @@ namespace CageMatchScraper
                                 opponents.AddRange(opp);
                             }
                         }
-                        w.objRecord.AddResult(opponents, won);
+                        w.objRecord.AddResult(opponents, result);
                         competitors[w.objectID] = w;
                     }
 
@@ -116,7 +117,7 @@ namespace CageMatchScraper
                 {
                     if(rankings.ContainsKey(r.opponent.objectID))
                     { 
-                        opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.objectID].objRecord.self, Convert.ToInt16(r.win))); 
+                        opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.objectID].objRecord.self, (double)Convert.ToInt16(r.result)/2)); 
                     }
                     else { Console.WriteLine("Couldnt find " + r.opponent.objectID); }
                 }
@@ -124,30 +125,11 @@ namespace CageMatchScraper
                 rec.opponentsRank.Clear();//clear rankings
                 if (rec.self.RatingDeviation < 200)//193 has a lot of results??
                 {
-                    Console.WriteLine($"{w.Name}: Wins:{rec.winCount},Losses:{rec.lossCount}, Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
+                    Console.WriteLine($"{w.Name}: Wins:{rec.winCount},Losses:{rec.lossCount},Draws:{rec.draws} Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
                 }
             }
         }
 
-        public void OutputRankings(EventResults e,ref Dictionary<int,I_Competitor> rankings)
-        {
-            foreach (Wrestler w in e.wrestlers)
-            {
-                Record rec = w.record[RecordType.Singles];
-                //w.record.self = new Glicko2.GlickoPlayer();
-                List<Glicko2.GlickoOpponent> opponents = new List<Glicko2.GlickoOpponent>();
-                foreach(RecordItem r in rec.opponentsRank)
-                {
-                    opponents.Add(new Glicko2.GlickoOpponent(rankings[r.opponent.objectID].objRecord.self, Convert.ToInt16(r.win)));
-                }
-                rec.self = Glicko2.GlickoCalculator.CalculateRanking(rec.self, opponents);
-                rec.opponentsRank.Clear();//clear rankings
-                if (rec.self.RatingDeviation < 200)//193 has a lot of results??
-                {
-                    Console.WriteLine($"{w.name}: Wins:{rec.winCount},Losses:{rec.lossCount}, Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
-                }
-            }
-        }
     }
 
     
