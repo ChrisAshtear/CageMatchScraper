@@ -15,7 +15,7 @@ namespace CageMatchScraper.DataObjects
         public Record record = new Record();
 
         public int objectID { get { return teamID; } set { teamID = value; } }
-        public string Name { get { return name; } }
+        public string Name { get { return GetName(); } }
 
         public bool IsSimpleTagTeam { get { return wrestlers.Count == 2; } }
         public Record objRecord { get { return record; } set { record = value; } }
@@ -23,6 +23,21 @@ namespace CageMatchScraper.DataObjects
         public TagTeam()
         {
             record.isTeam = true;
+        }
+
+        public string GetName()
+        {
+            if (name != "" && name != null) { return name; }
+            else
+            {
+                string names = "";
+                foreach(Wrestler w in wrestlers)
+                {
+                    names += w.name + "&";
+                }
+                names = names.TrimEnd('&');
+                return names;
+            }
         }
 
         public string POSTdata()

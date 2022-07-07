@@ -124,10 +124,10 @@ namespace CageMatchScraper
                             w.objRecord.draws++;
                         }
                         opponents.Clear();
-                        foreach (List<Wrestler> opp in m.sidesWrestlers)
+                        foreach (List<I_Competitor> opp in sides)
                         {
 
-                            if (m.sidesWrestlers[i] != opp && sides[i][0].objectID != 0)
+                            if (sides[i] != opp && sides[i][0].objectID != 0)
                             {
                                 opponents.AddRange(opp);
                             }
@@ -161,7 +161,7 @@ namespace CageMatchScraper
                 }
                 rec.self = Glicko2.GlickoCalculator.CalculateRanking(rec.self, opponents);
                 rec.opponentsRank.Clear();//clear rankings
-                if (rec.self.RatingDeviation < 400)//193 has a lot of results??
+                if (rec.self.RatingDeviation < 260)//193 has a lot of results??
                 {
                     Console.WriteLine($"{w.Name}: Wins:{rec.winCount},Losses:{rec.lossCount},Draws:{rec.draws} Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
                 }
