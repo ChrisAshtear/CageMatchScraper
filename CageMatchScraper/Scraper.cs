@@ -23,6 +23,7 @@ namespace CageMatchScraper
     {
         public List<Wrestler> wrestlers = new List<Wrestler>();
         public List<TagTeam> tags = new List<TagTeam>();
+        public List<TagTeam> pureTags = new List<TagTeam>();
         public Dictionary<string, WrestlingEvent> events = new Dictionary<string, WrestlingEvent>();
         public void AddWrestlers(IEnumerable<Wrestler> wrestlers)
         {
@@ -42,6 +43,16 @@ namespace CageMatchScraper
                 if (tags.FindIndex(o => o.teamID == t.teamID) == -1)
                 {
                     tags.Add(t);
+                }
+            }
+        }
+        public void AddPureTags(IEnumerable<TagTeam> tagteams)//support teams with diff members.
+        {
+            foreach (TagTeam t in tagteams)
+            {
+                if (pureTags.FindIndex(o => o.GetHashCode() == t.GetHashCode()) == -1)
+                {
+                    pureTags.Add(t);
                 }
             }
         }
@@ -333,6 +344,7 @@ namespace CageMatchScraper
                         List<Wrestler> participants = new List<Wrestler>();
                         List<Wrestler> nonparticipants = new List<Wrestler>();
                         List<TagTeam> teams = new List<TagTeam>();
+                        List<TagTeam> pureteams = new List<TagTeam>();
                         TagTeam team = new TagTeam();
                         
                         string teamEntry = Between(side, "(", ")");
@@ -360,10 +372,11 @@ namespace CageMatchScraper
                             if(otherMembers == "") { otherMembers = Between(side, "), "); }
                             if(otherMembers == "") 
                             {
-                                otherMembers = Between(side, "", "("); 
+                                otherMembers = Between(side, "", "(");
                             }
                             teams.Add(team);
-                            
+                            if (team.wrestlers.Count == 2) { pureteams.Add(team); }
+
                         }
                         string managers = Between(side, "(w/", ")");
                         if(managers.Length > 0) { nonparticipants = ParseParticipants(managers); }
@@ -382,8 +395,18 @@ namespace CageMatchScraper
                                 participants.Remove(f);
                             }
                         }
+
+                        if(participants.Count == 2 && team.wrestlers.Count != 2) 
+                        {
+                            TagTeam t = new TagTeam();
+                            t.wrestlers.AddRange(participants);
+                            t.teamID = t.GetHashCode();
+                            pureteams.Add(t); 
+                        }
+
                         match.sidesWrestlers.Add(participants);
                         match.sidesTeams.Add(teams);
+                        match.sidesPureTeams.Add(pureteams);
                     }
                     //match title: <span class= "MatchType"> - doesnt exist for every match.
                     //only shows ENTERTAINMENT - maybe its not escaping the string for post.
@@ -408,6 +431,10 @@ namespace CageMatchScraper
                     foreach( List<TagTeam> teams in match.sidesTeams)
                     {
                         events.AddTags(teams);
+                    }
+                    foreach (List<TagTeam> teams in match.sidesPureTeams)
+                    {
+                        events.AddPureTags(teams);
                     }
                     bool failedScrape = !match.VerifyScrape();
                     if (failedScrape) { Console.WriteLine("Failed Scrape: " + match.parseddesc); }

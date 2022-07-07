@@ -17,6 +17,7 @@ namespace CageMatchScraper.DataObjects
         public int objectID { get { return teamID; } set { teamID = value; } }
         public string Name { get { return name; } }
 
+        public bool IsSimpleTagTeam { get { return wrestlers.Count == 2; } }
         public Record objRecord { get { return record; } set { record = value; } }
 
         public TagTeam()
@@ -39,6 +40,23 @@ namespace CageMatchScraper.DataObjects
                 ins.sendData(API.apiCall.ADDTEAM_MEMBER, this, postDat);
             }
             return true;
+        }
+
+        public override int GetHashCode()
+        {
+            int hashcode = 42;
+            int multp = 0;
+            foreach(Wrestler w in wrestlers)
+            {
+                multp += w.wrestlerID;
+            }
+            hashcode *= multp;
+            return hashcode;
+        }
+
+        public override bool Equals(object other)
+        {
+            return other is TagTeam p && (p.GetHashCode()).Equals(GetHashCode());
         }
 
         public override String ToString()

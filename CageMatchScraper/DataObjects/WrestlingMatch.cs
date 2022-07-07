@@ -11,6 +11,7 @@ namespace CageMatchScraper.DataObjects
         public List<List<Wrestler>> sidesWrestlers = new List<List<Wrestler>>();
         public List<List<Wrestler>> sidesManagers = new List<List<Wrestler>>();
         public List<List<TagTeam>> sidesTeams = new List<List<TagTeam>>();
+        public List<List<TagTeam>> sidesPureTeams = new List<List<TagTeam>>();
         public string length;
         public int victor = 0;
         public string data;

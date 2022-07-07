@@ -28,43 +28,81 @@ namespace CageMatchScraper
                 glickoRanksTag.Add(t.teamID, t);
             }
 
-            runRank(glickoRanksTag, e.events,true);
+            //runRank(glickoRanksTag, e.events,RankType.tag);
+            glickoRanksTag.Clear();
+            foreach (TagTeam t in e.pureTags)
+            {
+                if(glickoRanksTag.ContainsKey(t.teamID))
+                {
+                    glickoRanksTag.Add(t.GetHashCode(), t);
+                }
+                else
+                {
+                    glickoRanksTag.Add(t.teamID, t);
+                }
+            }
+
+            runRank(glickoRanksTag, e.events, RankType.puretag);
+
         }
 
-        public void runRank(Dictionary<int,I_Competitor> competitors, Dictionary<string,WrestlingEvent> events, bool isTag=false)
+        public enum RankType { singles, tag, puretag };
+
+        public void runRank(Dictionary<int,I_Competitor> competitors, Dictionary<string,WrestlingEvent> events, RankType rtype = RankType.singles)
         {
             foreach (WrestlingEvent evt in events.Values.Reverse())
             {
                 foreach (WrestlingMatch m in evt.matches)
                 {
                     List<List<I_Competitor>> sides = new List<List<I_Competitor>>();
-                    if(!isTag)
+                    if (rtype == RankType.singles)
                     {
                         foreach (List<Wrestler> s in m.sidesWrestlers)
                         {
                             sides.Add(s.ToList<I_Competitor>());
                         }
+                        if (m.sidesWrestlers[0].Count != 1 || m.sidesWrestlers[1].Count != 1) { continue; }
                     }
-                    else
+                    else if (rtype == RankType.tag)
                     {
                         foreach (List<TagTeam> s in m.sidesTeams)
                         {
                             sides.Add(s.ToList<I_Competitor>());
                         }
+                        if (m.sidesWrestlers[0].Count != 2 || m.sidesWrestlers[1].Count != 2) { continue; }
+                    }
+                    else if (rtype == RankType.puretag)
+                    {
+                        foreach (List<TagTeam> s in m.sidesPureTeams)
+                        {
+                            sides.Add(s.ToList<I_Competitor>());
+                        }
+                        if(m.sidesWrestlers[0].Count !=2 || m.sidesWrestlers[1].Count != 2) { continue; }
                     }
                     if (sides[0].Count == 0) { continue; }
-                    if (sides.Count > 2) { continue; }//triple threat or battle royal.
+                    
+                    if(m.sidesWrestlers[0].Count != m.sidesWrestlers[1].Count) { continue; }//uneven sides. handicap matches shouldnt count, and potentially error on scrape.
+                    if (sides.Count > 4) { continue; }//count everything over as a battle royal.
                     List<I_Competitor> opponents = new List<I_Competitor>();
                     MatchResult result = MatchResult.Lose;
                     bool inMatch = false;
-                    if (sides[0].Count != 1) { continue; }//skip multi-man matches for now.
+                    if (sides[0].Count != 1) { continue; }
                     for (int i = 0; i < sides.Count; i++)
                     {
                         if (sides[i].Count == 0) { continue; }
                         List<I_Competitor> wrestlers = sides[i];
                         I_Competitor w = sides[i][0];
                         if (w.objectID == 0) { continue; }
-                        w = competitors[w.objectID];
+                        if (competitors.ContainsKey(w.objectID))
+                        {
+                            w = competitors[w.objectID];
+                        }
+                        else if(competitors.ContainsKey(w.GetHashCode()))
+                        {
+                            w = competitors[w.GetHashCode()];
+                        }
+                        else { Console.WriteLine("Cant find :" + w); continue; }
+
                         inMatch = true;
                         if (i == m.victor)
                         {
@@ -123,7 +161,7 @@ namespace CageMatchScraper
                 }
                 rec.self = Glicko2.GlickoCalculator.CalculateRanking(rec.self, opponents);
                 rec.opponentsRank.Clear();//clear rankings
-                if (rec.self.RatingDeviation < 200)//193 has a lot of results??
+                if (rec.self.RatingDeviation < 400)//193 has a lot of results??
                 {
                     Console.WriteLine($"{w.Name}: Wins:{rec.winCount},Losses:{rec.lossCount},Draws:{rec.draws} Glicko: {rec.self.GlickoRating}, Rating:{rec.self.Rating} - dev: {rec.self.RatingDeviation}");
                 }
