@@ -16,12 +16,18 @@ namespace CageMatchScraper
             url = baseURL;
         }
 
+        public string GetAPIUrl(API.apiCall call)
+        {
+            return url + "/" + API.Call(call);
+        }
+
         public string sendData(API.apiCall calltype, IWebDataOut webOut, string postDat="", byte[] extraData=null)
         {
             string address = url + "/" + API.Call(calltype);
 
-            string postData = webOut.POSTdata();
+            string postData = "";
             if(postDat != "") { postData = postDat; }
+            else { webOut.POSTdata(); }
             Console.WriteLine("\n" + postData + "\n");
             byte[] byteArray = Encoding.UTF8.GetBytes(postData);
 

@@ -23,6 +23,7 @@ namespace CageMatchScraper.DataObjects
         public int event_id;
         public RecordType matchType;
         public Division division;
+        public ScrapeStatus scrapestatus = ScrapeStatus.missing;
 
         public bool VerifyScrape()
         {
@@ -93,7 +94,7 @@ namespace CageMatchScraper.DataObjects
 
         public void SetDivision()
         {
-            if (sidesWrestlers[0][0] == null) { Console.WriteLine("Invalid match"); return; }
+            if (sidesWrestlers[0].Count==0) { Console.WriteLine("Invalid match"); return; }
             if (sidesWrestlers[0][0].gender == "female") { division = Division.Women; return; }
             if (sidesWrestlers[0][0].gender == "male") { division = Division.Men; return; }
         }
@@ -117,6 +118,11 @@ namespace CageMatchScraper.DataObjects
         public string POSTdata()
         {
             return $"title={title}&fed_id={fed_id}&result={result}&length={length}&victor={victor}&event_id={event_id}";
+        }
+
+        public string POSTstatus(string matchID)
+        {
+            return $"obj_id={matchID}&table=matches&status={scrapestatus}";
         }
 
         public bool sendData(SendData ins)

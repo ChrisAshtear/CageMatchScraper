@@ -8,10 +8,19 @@ using System.IO;
 using Glicko2;
 using CageMatchScraper.DataObjects;
 using System.Globalization;
+using Newtonsoft.Json;
 
 namespace CageMatchScraper
 {
 
+    public class ScrapeStatInfo
+    {
+        public int obj_id;
+        public string status;
+        public string tableName;
+    }
+
+    public enum ScrapeStatus { missing,failedscrape,complete};
 
     public interface IWebDataOut
     {
@@ -97,6 +106,8 @@ namespace CageMatchScraper
         private static string baseURL = "https://www.cagematch.net/?";// id=2&nr=16006";
         private static string imgURL = "https://prowrestling.fandom.com/wiki/";
         private string url;
+
+        private Dictionary<string, Dictionary<int, ScrapeStatInfo>> scrapeInfo = new Dictionary<string, Dictionary<int, ScrapeStatInfo>>();
         public Scraper()
         {
         }
@@ -107,6 +118,41 @@ namespace CageMatchScraper
             client.DefaultRequestHeaders.Host = new Uri(fullUrl).Host;
             var response = client.GetStringAsync(fullUrl);
             return await response;
+        }
+
+        public string GetScrapeStatus(SendData ins)
+        {
+            string url = ins.GetAPIUrl(API.apiCall.GETSCRAPESTATUS);
+            url += "?tableName=workers";
+            string response = CallUrl(url).Result;
+            string test = "{\"id\":4,\"obj_id\":24833,\"status\":\"complete\",\"lastUpdate\":\"2022 - 07 - 17T21: 30:10.000Z\",\"tableName\":\"workers\"}";
+            string[] entries = response.Split("},{");
+            Dictionary<int,ScrapeStatInfo> stats = new Dictionary<int,ScrapeStatInfo>();
+            foreach(string entry in entries)
+            {
+                ScrapeStatInfo info = new ScrapeStatInfo();
+                string obj_id = Between(entry, "obj_id\":", ",");
+                info.obj_id = int.Parse(obj_id);
+                string status = Between(entry, "status\":\"", "\",");
+                info.status = status;
+                if (stats.ContainsKey(info.obj_id)) { continue; }
+                stats.Add(info.obj_id, info);
+            }
+            scrapeInfo.Add("workers", stats);
+
+            return response;
+        }
+
+        public bool needsScrape(string objType,int id)
+        {
+            if(scrapeInfo.ContainsKey(objType))
+            {
+                if(scrapeInfo[objType].ContainsKey(id))
+                {
+                    return !(scrapeInfo[objType][id].status == "complete");
+                }
+            }
+            return true;
         }
 
         public static string GetEntry(RequestType type, int promotionID, PageType pageNum = PageType.OVERVIEW, int resultPage=0)

@@ -27,6 +27,7 @@ namespace CageMatchScraper.DataObjects
         public string finisher;
         public DateTime debut;
         public byte[] picture;
+        public ScrapeStatus scrapestatus = ScrapeStatus.missing;
 
         public int objectID { get { return wrestlerID; }  set { wrestlerID = value; } }
         public string Name { get { return name; }}
@@ -42,7 +43,7 @@ namespace CageMatchScraper.DataObjects
         public string POSTdataAll()
         {
             //byte array needs to be built, just doing a tostring results in System[byte] or something not useful
-            return $"name={name}&worker_id={wrestlerID}&birthplace={birthplace}&style={style}&nicknames={nicknames}&sportsBG={sportsBG}&experience={experience}&inringstart={inringstart}&trainer={trainer}&finisher={finisher}&height={height}&weight={weight}&age={age}&gender={gender}";
+            return $"name={name}&worker_id={wrestlerID}&birthplace={birthplace}&style={style}&nicknames={nicknames}&sportsBG={sportsBG}&experience={experience}&inringstart={inringstart}&trainer={trainer}&finisher={finisher}&height={height}&weight={weight}&age={age}&gender={gender}&scrapestatus={scrapestatus}";
         }
 
         public string POSTrecord(RecordType rec)
@@ -56,13 +57,22 @@ namespace CageMatchScraper.DataObjects
             return $"obj_id={wrestlerID}&objtype=worker&pictype=fullbody";
         }
 
+        public string POSTstatus()
+        {
+            return $"obj_id={wrestlerID}&tableName=workers&status={scrapestatus}";
+        }
+
         public bool sendData(SendData ins)
         {
             //ins.sendData(API.apiCall.ADDWORKER, this,"",picture);
+
+
             MultipartFormDataContent form = ins.POSTtoFormData(POSTdataAll());
             HttpResponseMessage res = ins.SendFormData(API.apiCall.ADDWORKER, form);
-            Console.WriteLine(res.Content.ToString());
+            Console.WriteLine(res?.Content?.ToString() ?? "NO RESPONSE");
 
+            Console.WriteLine(this.POSTstatus());
+            ins.sendData(API.apiCall.SETSCRAPESTATUS, this,POSTstatus());
             MultipartFormDataContent formPic = ins.POSTtoFormData(POSTpic());
 
             if (this.picture == null)
@@ -73,12 +83,14 @@ namespace CageMatchScraper.DataObjects
             pic.Headers.ContentType = MediaTypeHeaderValue.Parse("plain/text");
 
             formPic.Add(pic, "picdata");
+            
             res = ins.SendFormData(API.apiCall.ADDIMAGE, formPic);
-            Console.WriteLine(res.Content.ToString());
+            Console.WriteLine(res?.Content?.ToString() ?? "NO RESPONSE");
+
 
             MultipartFormDataContent formRecord = ins.POSTtoFormData(POSTrecord(RecordType.Singles));
             res = ins.SendFormData(API.apiCall.ADDWORKER_RECORD, formRecord);
-            Console.WriteLine(res.Content.ToString());
+            Console.WriteLine(res?.Content?.ToString() ?? "NO RESPONSE");
             //send picture
             //send data
             //send record.

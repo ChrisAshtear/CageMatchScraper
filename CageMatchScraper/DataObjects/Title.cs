@@ -36,6 +36,7 @@ namespace CageMatchScraper.DataObjects
         public int promotion_id;
         public RecordType title_type;
         public Division division;
+        public ScrapeStatus scrapestatus = ScrapeStatus.missing;
 
         public string POSTdata()
         {

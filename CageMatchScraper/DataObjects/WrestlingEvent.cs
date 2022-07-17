@@ -14,6 +14,7 @@ namespace CageMatchScraper.DataObjects
         public string arena;
         public int eventID;
         public int fed_id;
+        public ScrapeStatus scrapestatus = ScrapeStatus.missing;
 
         public List<WrestlingMatch> matches = new List<WrestlingMatch>();
 
@@ -22,9 +23,17 @@ namespace CageMatchScraper.DataObjects
             return $"e_id={eventID}&name={name}&fed_id={fed_id}&date={date}&arena={arena}&location={location}";
         }
 
+        public string POSTstatus()
+        {
+            return $"obj_id={eventID}&table=events&status={scrapestatus}";
+        }
+
         public bool sendData(SendData ins)
         {
             ins.sendData(API.apiCall.ADDEVENT, this);
+
+            //ins.sendData(API.apiCall.SETSCRAPESTATUS, this, POSTstatus());
+
             foreach (WrestlingMatch match in matches)
             {
                 match.fed_id = fed_id;

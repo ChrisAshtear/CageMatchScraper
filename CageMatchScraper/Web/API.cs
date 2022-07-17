@@ -21,6 +21,8 @@ namespace CageMatchScraper
             ADDIMAGE = 8,
             ADDTITLE = 9,
             ADDTITLE_REIGN=10,
+            GETSCRAPESTATUS=11,
+            SETSCRAPESTATUS=12,
         }
 
         private static string[] apicalls = {
@@ -35,6 +37,8 @@ namespace CageMatchScraper
             "addimage",
             "addtitle",
             "addtitlereign",
+            "getscrapestatus",
+            "setscrapestatus"
         };
 
         public static string Call(apiCall calltype)
